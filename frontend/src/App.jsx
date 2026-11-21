@@ -1,49 +1,70 @@
 import { useState, useEffect } from "react";
- 
+
 const API_URL = "http://localhost:8080/api/careers";
- 
+
 function App() {
   const [careers, setCareers] = useState([]);
   const [error, setError] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
- 
+  const [editingId, setEditingId] = useState(null);
+
   const loadCareers = () => {
     fetch(API_URL)
       .then((response) => response.json())
       .then((data) => setCareers(data))
       .catch(() => setError("Could not reach the backend"));
   };
- 
+
   useEffect(() => {
     loadCareers();
   }, []);
- 
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setCategory("");
+    setEditingId(null);
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
- 
-    fetch(API_URL, {
-      method: "POST",
+
+    const isEditing = editingId !== null;
+    const url = isEditing ? `${API_URL}/${editingId}` : API_URL;
+    const method = isEditing ? "PUT" : "POST";
+
+    fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, description, category }),
     })
       .then((response) => response.json())
       .then(() => {
-        setTitle("");
-        setDescription("");
-        setCategory("");
+        resetForm();
         loadCareers();
       })
       .catch(() => setError("Could not save the career"));
   };
- 
+
+  const handleEdit = (career) => {
+    setEditingId(career.id);
+    setTitle(career.title);
+    setDescription(career.description || "");
+    setCategory(career.category || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleDelete = (id) => {
     fetch(`${API_URL}/${id}`, { method: "DELETE" })
-      .then(() => loadCareers())
+      .then(() => {
+        if (editingId === id) resetForm();
+        loadCareers();
+      })
       .catch(() => setError("Could not delete the career"));
   };
- 
+
   const inputStyle = {
     display: "block",
     width: "100%",
@@ -51,12 +72,12 @@ function App() {
     marginBottom: "0.75rem",
     boxSizing: "border-box",
   };
- 
+
   return (
     <div style={{ padding: "2rem", maxWidth: "700px", margin: "0 auto" }}>
       <h1>Student Career Navigator</h1>
- 
-      <h2>Add a career</h2>
+
+      <h2>{editingId !== null ? "Edit career" : "Add a career"}</h2>
       <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
         <input
           style={inputStyle}
@@ -77,11 +98,22 @@ function App() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         />
-        <button type="submit">Add career</button>
+        <button type="submit">
+          {editingId !== null ? "Save changes" : "Add career"}
+        </button>
+        {editingId !== null && (
+          <button
+            type="button"
+            onClick={resetForm}
+            style={{ marginLeft: "0.5rem" }}
+          >
+            Cancel
+          </button>
+        )}
       </form>
- 
+
       {error && <p style={{ color: "red" }}>{error}</p>}
- 
+
       <h2>All careers</h2>
       {careers.map((career) => (
         <div
@@ -98,8 +130,14 @@ function App() {
           <small>Category: {career.category}</small>
           <br />
           <button
-            onClick={() => handleDelete(career.id)}
+            onClick={() => handleEdit(career)}
             style={{ marginTop: "0.5rem" }}
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => handleDelete(career.id)}
+            style={{ marginTop: "0.5rem", marginLeft: "0.5rem" }}
           >
             Delete
           </button>
@@ -108,6 +146,5 @@ function App() {
     </div>
   );
 }
- 
+
 export default App;
- 
