@@ -1,7 +1,16 @@
+# Dependencies & Build Outputs
 node_modules/
 target/
 dist/
+build/
+
+# Environment & Secrets
 .env
+.env.local
+
+# IDE & OS
 .idea/
 .vscode/
-*.log
+*.iml
+.DS_Store
+Thumbs.db

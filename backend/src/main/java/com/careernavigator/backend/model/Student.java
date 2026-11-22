@@ -10,6 +10,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -22,9 +25,13 @@ public class Student {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Student name is required")
+    @Size(min = 2, max = 80, message = "Name must be between 2 and 80 characters")
     @Column(nullable = false)
     private String name;
 
+    @NotBlank(message = "Email is required")
+    @Email(message = "Please provide a valid email address")
     @Column(nullable = false, unique = true)
     private String email;
 
@@ -37,6 +44,12 @@ public class Student {
     private Set<Skill> skills = new HashSet<>();
 
     public Student() {
+    }
+
+    public Student(String name, String email, Set<Skill> skills) {
+        this.name = name;
+        this.email = email;
+        this.skills = skills;
     }
 
     public Long getId() { return id; }

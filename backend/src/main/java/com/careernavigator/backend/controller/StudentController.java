@@ -4,6 +4,7 @@ import com.careernavigator.backend.model.Skill;
 import com.careernavigator.backend.model.Student;
 import com.careernavigator.backend.repository.SkillRepository;
 import com.careernavigator.backend.repository.StudentRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -42,12 +43,15 @@ public class StudentController {
     }
 
     @PostMapping
-    public Student addStudent(@RequestBody Student student) {
+    public Student addStudent(@Valid @RequestBody Student student) {
         return studentRepository.save(student);
     }
 
     @DeleteMapping("/{id}")
     public void deleteStudent(@PathVariable Long id) {
+        if (!studentRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Student not found");
+        }
         studentRepository.deleteById(id);
     }
 

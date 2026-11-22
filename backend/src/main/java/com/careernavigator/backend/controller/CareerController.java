@@ -5,6 +5,7 @@ import com.careernavigator.backend.model.Career;
 import com.careernavigator.backend.model.Skill;
 import com.careernavigator.backend.repository.CareerRepository;
 import com.careernavigator.backend.repository.SkillRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -63,12 +64,12 @@ public class CareerController {
     }
 
     @PostMapping
-    public Career addCareer(@RequestBody Career career) {
+    public Career addCareer(@Valid @RequestBody Career career) {
         return careerRepository.save(career);
     }
 
     @PutMapping("/{id}")
-    public Career updateCareer(@PathVariable Long id, @RequestBody Career updated) {
+    public Career updateCareer(@PathVariable Long id, @Valid @RequestBody Career updated) {
         Career career = findCareer(id);
         career.setTitle(updated.getTitle());
         career.setDescription(updated.getDescription());
@@ -78,6 +79,9 @@ public class CareerController {
 
     @DeleteMapping("/{id}")
     public void deleteCareer(@PathVariable Long id) {
+        if (!careerRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Career not found");
+        }
         careerRepository.deleteById(id);
     }
 
