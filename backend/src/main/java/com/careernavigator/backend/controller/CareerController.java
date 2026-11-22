@@ -1,5 +1,6 @@
 package com.careernavigator.backend.controller;
 
+import com.careernavigator.backend.dto.CareerMatch;
 import com.careernavigator.backend.model.Career;
 import com.careernavigator.backend.model.Skill;
 import com.careernavigator.backend.repository.CareerRepository;
@@ -13,10 +14,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/careers")
@@ -34,6 +39,27 @@ public class CareerController {
     @GetMapping
     public List<Career> getAllCareers() {
         return careerRepository.findAll();
+    }
+
+    @GetMapping("/match")
+    public List<CareerMatch> matchCareers(@RequestParam List<Long> skillIds) {
+        Set<Long> studentSkillIds = new HashSet<>(skillIds);
+
+        return careerRepository.findAll().stream()
+                .filter(career -> !career.getSkills().isEmpty())
+                .map(career -> {
+                    List<Skill> matched = career.getSkills().stream()
+                            .filter(skill -> studentSkillIds.contains(skill.getId()))
+                            .toList();
+                    List<Skill> missing = career.getSkills().stream()
+                            .filter(skill -> !studentSkillIds.contains(skill.getId()))
+                            .toList();
+                    int percent = Math.round(matched.size() * 100f / career.getSkills().size());
+                    return new CareerMatch(career, matched, missing, percent);
+                })
+                .filter(match -> !match.matchedSkills().isEmpty())
+                .sorted(Comparator.comparingInt(CareerMatch::matchPercent).reversed())
+                .toList();
     }
 
     @PostMapping

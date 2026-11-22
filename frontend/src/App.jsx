@@ -13,6 +13,8 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [skillName, setSkillName] = useState("");
   const [skillCategory, setSkillCategory] = useState("");
+  const [selectedSkillIds, setSelectedSkillIds] = useState([]);
+  const [matches, setMatches] = useState(null);
 
   const loadCareers = () => {
     fetch(API_URL)
@@ -139,6 +141,28 @@ function App() {
       .catch((err) => setError("Could not create the skill: " + err.message));
   };
 
+  const toggleSelectedSkill = (skillId) => {
+    setSelectedSkillIds((current) =>
+      current.includes(skillId)
+        ? current.filter((id) => id !== skillId)
+        : [...current, skillId]
+    );
+    setMatches(null);
+  };
+
+  const handleFindCareers = () => {
+    fetch(`${API_URL}/match?skillIds=${selectedSkillIds.join(",")}`)
+      .then((response) => {
+        if (!response.ok) throw new Error("Server error " + response.status);
+        return response.json();
+      })
+      .then((data) => {
+        setMatches(data);
+        setError("");
+      })
+      .catch((err) => setError("Could not find matches: " + err.message));
+  };
+
   const inputStyle = {
     display: "block",
     width: "100%",
@@ -160,9 +184,87 @@ function App() {
     fontSize: "0.9rem",
   };
 
+  const matchedBadgeStyle = {
+    ...badgeStyle,
+    background: "#e3f6e8",
+    color: "#14622b",
+  };
+
+  const missingBadgeStyle = {
+    ...badgeStyle,
+    background: "#f1f1f1",
+    color: "#555",
+  };
+
   return (
     <div style={{ padding: "2rem", maxWidth: "700px", margin: "0 auto" }}>
       <h1>Student Career Navigator</h1>
+
+      <h2>Find careers for you</h2>
+      <p>Tick the skills you already have:</p>
+      <div style={{ marginBottom: "0.75rem" }}>
+        {skills.length === 0 && <span>No skills yet. Add some below.</span>}
+        {skills.map((skill) => (
+          <label key={skill.id} style={{ marginRight: "1rem", display: "inline-block" }}>
+            <input
+              type="checkbox"
+              checked={selectedSkillIds.includes(skill.id)}
+              onChange={() => toggleSelectedSkill(skill.id)}
+            />{" "}
+            {skill.name}
+          </label>
+        ))}
+      </div>
+      <button
+        onClick={handleFindCareers}
+        disabled={selectedSkillIds.length === 0}
+      >
+        Find careers
+      </button>
+
+      {matches !== null && (
+        <div style={{ marginTop: "1rem", marginBottom: "2rem" }}>
+          {matches.length === 0 && (
+            <p>
+              No careers match yet. Make sure your careers have skills attached
+              further down the page.
+            </p>
+          )}
+          {matches.map((match) => (
+            <div
+              key={match.career.id}
+              style={{
+                border: "1px solid #b7dfc2",
+                borderRadius: "8px",
+                padding: "1rem",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <h3 style={{ marginTop: 0 }}>
+                {match.career.title} ({match.matchPercent}% match)
+              </h3>
+              <div>
+                <strong>You have: </strong>
+                {match.matchedSkills.map((skill) => (
+                  <span key={skill.id} style={matchedBadgeStyle}>
+                    {skill.name}
+                  </span>
+                ))}
+              </div>
+              {match.missingSkills.length > 0 && (
+                <div>
+                  <strong>To learn: </strong>
+                  {match.missingSkills.map((skill) => (
+                    <span key={skill.id} style={missingBadgeStyle}>
+                      {skill.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <h2>{editingId !== null ? "Edit career" : "Add a career"}</h2>
       <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
