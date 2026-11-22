@@ -11,6 +11,8 @@ function App() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [skillName, setSkillName] = useState("");
+  const [skillCategory, setSkillCategory] = useState("");
 
   const loadCareers = () => {
     fetch(API_URL)
@@ -110,6 +112,33 @@ function App() {
       .catch((err) => setError("Could not remove the skill: " + err.message));
   };
 
+  const handleCreateSkill = (event) => {
+    event.preventDefault();
+
+    fetch(SKILLS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: skillName.trim(), category: skillCategory }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            "the skill name may already exist (server error " +
+              response.status +
+              ")"
+          );
+        }
+        return response.json();
+      })
+      .then(() => {
+        setSkillName("");
+        setSkillCategory("");
+        setError("");
+        loadSkills();
+      })
+      .catch((err) => setError("Could not create the skill: " + err.message));
+  };
+
   const inputStyle = {
     display: "block",
     width: "100%",
@@ -169,6 +198,33 @@ function App() {
           </button>
         )}
       </form>
+
+      <h2>Skills</h2>
+      <form onSubmit={handleCreateSkill} style={{ marginBottom: "1rem" }}>
+        <input
+          style={inputStyle}
+          placeholder="Skill name (e.g. Python)"
+          value={skillName}
+          onChange={(e) => setSkillName(e.target.value)}
+          required
+        />
+        <input
+          style={inputStyle}
+          placeholder="Skill category (e.g. Programming)"
+          value={skillCategory}
+          onChange={(e) => setSkillCategory(e.target.value)}
+        />
+        <button type="submit">Add skill</button>
+      </form>
+
+      <div style={{ marginBottom: "2rem" }}>
+        {skills.length === 0 && <span>No skills yet.</span>}
+        {skills.map((skill) => (
+          <span key={skill.id} style={badgeStyle}>
+            {skill.name}
+          </span>
+        ))}
+      </div>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
