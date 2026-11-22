@@ -2,19 +2,29 @@ import { useState, useEffect } from "react";
 
 const API_URL = "http://localhost:8080/api/careers";
 const SKILLS_URL = "http://localhost:8080/api/skills";
+const STUDENTS_URL = "http://localhost:8080/api/students";
 
 function App() {
   const [careers, setCareers] = useState([]);
   const [skills, setSkills] = useState([]);
+  const [students, setStudents] = useState([]);
   const [error, setError] = useState("");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [editingId, setEditingId] = useState(null);
+
   const [skillName, setSkillName] = useState("");
   const [skillCategory, setSkillCategory] = useState("");
-  const [selectedSkillIds, setSelectedSkillIds] = useState([]);
+
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [matches, setMatches] = useState(null);
+
+  const selectedStudent =
+    students.find((student) => student.id === selectedStudentId) || null;
 
   const loadCareers = () => {
     fetch(API_URL)
@@ -39,9 +49,20 @@ function App() {
       .catch(() => setError("Could not load skills"));
   };
 
+  const loadStudents = () => {
+    fetch(STUDENTS_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error("Server error " + response.status);
+        return response.json();
+      })
+      .then((data) => setStudents(data))
+      .catch(() => setError("Could not load students"));
+  };
+
   useEffect(() => {
     loadCareers();
     loadSkills();
+    loadStudents();
   }, []);
 
   const resetForm = () => {
@@ -89,6 +110,7 @@ function App() {
         if (!response.ok) throw new Error("Server error " + response.status);
         if (editingId === id) resetForm();
         setError("");
+        setMatches(null);
         loadCareers();
       })
       .catch((err) => setError("Could not delete the career: " + err.message));
@@ -99,6 +121,7 @@ function App() {
       .then((response) => {
         if (!response.ok) throw new Error("Server error " + response.status);
         setError("");
+        setMatches(null);
         loadCareers();
       })
       .catch((err) => setError("Could not add the skill: " + err.message));
@@ -109,6 +132,7 @@ function App() {
       .then((response) => {
         if (!response.ok) throw new Error("Server error " + response.status);
         setError("");
+        setMatches(null);
         loadCareers();
       })
       .catch((err) => setError("Could not remove the skill: " + err.message));
@@ -141,17 +165,73 @@ function App() {
       .catch((err) => setError("Could not create the skill: " + err.message));
   };
 
-  const toggleSelectedSkill = (skillId) => {
-    setSelectedSkillIds((current) =>
-      current.includes(skillId)
-        ? current.filter((id) => id !== skillId)
-        : [...current, skillId]
-    );
+  const handleCreateStudent = (event) => {
+    event.preventDefault();
+
+    fetch(STUDENTS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: studentName.trim(),
+        email: studentEmail.trim(),
+      }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            "the email may already be used (server error " +
+              response.status +
+              ")"
+          );
+        }
+        return response.json();
+      })
+      .then((created) => {
+        setStudentName("");
+        setStudentEmail("");
+        setSelectedStudentId(created.id);
+        setMatches(null);
+        setError("");
+        loadStudents();
+      })
+      .catch((err) => setError("Could not create the student: " + err.message));
+  };
+
+  const handleSelectStudent = (value) => {
+    setSelectedStudentId(value === "" ? null : Number(value));
     setMatches(null);
   };
 
-  const handleFindCareers = () => {
-    fetch(`${API_URL}/match?skillIds=${selectedSkillIds.join(",")}`)
+  const handleStudentAddSkill = (skillId) => {
+    fetch(`${STUDENTS_URL}/${selectedStudentId}/skills/${skillId}`, {
+      method: "PUT",
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Server error " + response.status);
+        setError("");
+        setMatches(null);
+        loadStudents();
+      })
+      .catch((err) => setError("Could not add the skill: " + err.message));
+  };
+
+  const handleStudentRemoveSkill = (skillId) => {
+    fetch(`${STUDENTS_URL}/${selectedStudentId}/skills/${skillId}`, {
+      method: "DELETE",
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Server error " + response.status);
+        setError("");
+        setMatches(null);
+        loadStudents();
+      })
+      .catch((err) => setError("Could not remove the skill: " + err.message));
+  };
+
+  const handleShowRecommendations = () => {
+    const ids = selectedStudent.skills.map((skill) => skill.id).join(",");
+
+    fetch(`${API_URL}/match?skillIds=${ids}`)
       .then((response) => {
         if (!response.ok) throw new Error("Server error " + response.status);
         return response.json();
@@ -160,7 +240,9 @@ function App() {
         setMatches(data);
         setError("");
       })
-      .catch((err) => setError("Could not find matches: " + err.message));
+      .catch((err) =>
+        setError("Could not load recommendations: " + err.message)
+      );
   };
 
   const inputStyle = {
@@ -196,73 +278,153 @@ function App() {
     color: "#555",
   };
 
+  const removeButtonStyle = {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    color: "#1a3c8f",
+    padding: 0,
+  };
+
+  const studentSkills = selectedStudent ? selectedStudent.skills || [] : [];
+  const studentAvailableSkills = skills.filter(
+    (skill) => !studentSkills.some((ss) => ss.id === skill.id)
+  );
+
   return (
     <div style={{ padding: "2rem", maxWidth: "700px", margin: "0 auto" }}>
       <h1>Student Career Navigator</h1>
 
-      <h2>Find careers for you</h2>
-      <p>Tick the skills you already have:</p>
-      <div style={{ marginBottom: "0.75rem" }}>
-        {skills.length === 0 && <span>No skills yet. Add some below.</span>}
-        {skills.map((skill) => (
-          <label key={skill.id} style={{ marginRight: "1rem", display: "inline-block" }}>
-            <input
-              type="checkbox"
-              checked={selectedSkillIds.includes(skill.id)}
-              onChange={() => toggleSelectedSkill(skill.id)}
-            />{" "}
-            {skill.name}
-          </label>
-        ))}
-      </div>
-      <button
-        onClick={handleFindCareers}
-        disabled={selectedSkillIds.length === 0}
-      >
-        Find careers
-      </button>
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {matches !== null && (
-        <div style={{ marginTop: "1rem", marginBottom: "2rem" }}>
-          {matches.length === 0 && (
-            <p>
-              No careers match yet. Make sure your careers have skills attached
-              further down the page.
-            </p>
-          )}
-          {matches.map((match) => (
-            <div
-              key={match.career.id}
-              style={{
-                border: "1px solid #b7dfc2",
-                borderRadius: "8px",
-                padding: "1rem",
-                marginBottom: "0.75rem",
-              }}
+      <h2>Student profile</h2>
+      <select
+        value={selectedStudentId ?? ""}
+        onChange={(e) => handleSelectStudent(e.target.value)}
+        style={{ ...inputStyle, width: "auto", minWidth: "250px" }}
+      >
+        <option value="">Select a student...</option>
+        {students.map((student) => (
+          <option key={student.id} value={student.id}>
+            {student.name} ({student.email})
+          </option>
+        ))}
+      </select>
+
+      <form onSubmit={handleCreateStudent} style={{ marginBottom: "1.5rem" }}>
+        <input
+          style={inputStyle}
+          placeholder="New student name"
+          value={studentName}
+          onChange={(e) => setStudentName(e.target.value)}
+          required
+        />
+        <input
+          style={inputStyle}
+          type="email"
+          placeholder="New student email"
+          value={studentEmail}
+          onChange={(e) => setStudentEmail(e.target.value)}
+          required
+        />
+        <button type="submit">Create student</button>
+      </form>
+
+      {selectedStudent && (
+        <div
+          style={{
+            border: "1px solid #b7dfc2",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "2rem",
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>Hi, {selectedStudent.name}</h3>
+          <strong>Your skills:</strong>{" "}
+          {studentSkills.length === 0 && <span>none yet</span>}
+          <div style={{ marginTop: "0.4rem" }}>
+            {studentSkills.map((skill) => (
+              <span key={skill.id} style={badgeStyle}>
+                {skill.name}
+                <button
+                  onClick={() => handleStudentRemoveSkill(skill.id)}
+                  title="Remove skill"
+                  style={removeButtonStyle}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+
+          {studentAvailableSkills.length > 0 && (
+            <select
+              value=""
+              onChange={(e) =>
+                e.target.value && handleStudentAddSkill(e.target.value)
+              }
             >
-              <h3 style={{ marginTop: 0 }}>
-                {match.career.title} ({match.matchPercent}% match)
-              </h3>
-              <div>
-                <strong>You have: </strong>
-                {match.matchedSkills.map((skill) => (
-                  <span key={skill.id} style={matchedBadgeStyle}>
-                    {skill.name}
-                  </span>
-                ))}
-              </div>
-              {match.missingSkills.length > 0 && (
-                <div>
-                  <strong>To learn: </strong>
-                  {match.missingSkills.map((skill) => (
-                    <span key={skill.id} style={missingBadgeStyle}>
-                      {skill.name}
-                    </span>
-                  ))}
-                </div>
+              <option value="">+ Add a skill you have...</option>
+              {studentAvailableSkills.map((skill) => (
+                <option key={skill.id} value={skill.id}>
+                  {skill.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <div style={{ marginTop: "1rem" }}>
+            <button
+              onClick={handleShowRecommendations}
+              disabled={studentSkills.length === 0}
+            >
+              Show recommendations
+            </button>
+          </div>
+
+          {matches !== null && (
+            <div style={{ marginTop: "1rem" }}>
+              {matches.length === 0 && (
+                <p>
+                  No careers match yet. Make sure careers have skills attached
+                  further down the page.
+                </p>
               )}
+              {matches.map((match) => (
+                <div
+                  key={match.career.id}
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    padding: "0.75rem 1rem",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  <h4 style={{ margin: "0 0 0.5rem 0" }}>
+                    {match.career.title} ({match.matchPercent}% match)
+                  </h4>
+                  <div>
+                    <strong>You have: </strong>
+                    {match.matchedSkills.map((skill) => (
+                      <span key={skill.id} style={matchedBadgeStyle}>
+                        {skill.name}
+                      </span>
+                    ))}
+                  </div>
+                  {match.missingSkills.length > 0 && (
+                    <div>
+                      <strong>To learn: </strong>
+                      {match.missingSkills.map((skill) => (
+                        <span key={skill.id} style={missingBadgeStyle}>
+                          {skill.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -328,8 +490,6 @@ function App() {
         ))}
       </div>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
       <h2>All careers</h2>
       {careers.map((career) => {
         const careerSkills = career.skills || [];
@@ -361,13 +521,7 @@ function App() {
                     <button
                       onClick={() => handleRemoveSkill(career.id, skill.id)}
                       title="Remove skill"
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        color: "#1a3c8f",
-                        padding: 0,
-                      }}
+                      style={removeButtonStyle}
                     >
                       ×
                     </button>
