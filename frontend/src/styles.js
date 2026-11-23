@@ -1,40 +1,51 @@
 export const inputStyle = {
-  display: "block",
-  width: "100%",
-  padding: "0.5rem",
-  marginBottom: "0.75rem",
-  boxSizing: "border-box",
+  padding: "9px 13px",
+  borderRadius: "10px",
+  border: "1.5px solid #e2e8f0",
+  fontSize: "14px",
+  marginRight: "8px",
+  marginBottom: "8px",
+  fontFamily: "inherit",
+  backgroundColor: "#ffffff",
+  color: "#0f172a",
 };
 
 export const badgeStyle = {
   display: "inline-flex",
   alignItems: "center",
-  gap: "0.4rem",
-  background: "#e8f0fe",
-  color: "#1a3c8f",
+  gap: "6px",
+  padding: "5px 12px",
   borderRadius: "999px",
-  padding: "0.2rem 0.7rem",
-  marginRight: "0.4rem",
-  marginBottom: "0.4rem",
-  fontSize: "0.9rem",
+  backgroundColor: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #bfdbfe",
+  fontSize: "13px",
+  fontWeight: 600,
+  marginRight: "6px",
+  marginBottom: "6px",
 };
 
 export const matchedBadgeStyle = {
   ...badgeStyle,
-  background: "#e3f6e8",
-  color: "#14622b",
+  backgroundColor: "#ecfdf5",
+  color: "#047857",
+  border: "1px solid #a7f3d0",
 };
 
 export const missingBadgeStyle = {
   ...badgeStyle,
-  background: "#f1f1f1",
-  color: "#555",
+  backgroundColor: "#fff7ed",
+  color: "#c2410c",
+  border: "1px solid #fed7aa",
 };
 
 export const removeButtonStyle = {
+  background: "none",
   border: "none",
-  background: "transparent",
+  color: "#ef4444",
+  fontWeight: 800,
+  fontSize: "14px",
   cursor: "pointer",
-  color: "#1a3c8f",
-  padding: 0,
+  padding: "0 2px",
+  lineHeight: 1,
 };
