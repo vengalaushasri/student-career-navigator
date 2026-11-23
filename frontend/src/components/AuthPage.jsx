@@ -20,7 +20,23 @@ export default function AuthPage({ onAuthSuccess }) {
         : await loginUser({ email, password });
       onAuthSuccess(authData);
     } catch (err) {
-      setError(err.message || "Authentication failed");
+      setError(err.message || "Authentication failed. If the cloud server just woke up, retry in 10 seconds.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const quickDemoLogin = async (demoEmail, demoPass) => {
+    setIsRegister(false);
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setError("");
+    setLoading(true);
+    try {
+      const authData = await loginUser({ email: demoEmail, password: demoPass });
+      onAuthSuccess(authData);
+    } catch (err) {
+      setError(err.message || "Demo login failed");
     } finally {
       setLoading(false);
     }
@@ -40,7 +56,7 @@ export default function AuthPage({ onAuthSuccess }) {
       <div
         style={{
           width: "100%",
-          maxWidth: 440,
+          maxWidth: 460,
           background: "#ffffff",
           borderRadius: 20,
           padding: 32,
@@ -49,7 +65,7 @@ export default function AuthPage({ onAuthSuccess }) {
         }}
       >
         {/* Brand Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <div
             style={{
               width: 42,
@@ -76,6 +92,53 @@ export default function AuthPage({ onAuthSuccess }) {
           </div>
         </div>
 
+        {/* Recruiter 1-Click Demo Strip */}
+        <div
+          style={{
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+            padding: "10px 12px",
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 8, textTransform: "uppercase" }}>
+            Instant Recruiter Demo Access
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => quickDemoLogin("student@demo.com", "demo123")}
+              style={{
+                padding: "7px 10px",
+                fontSize: 12,
+                fontWeight: 700,
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                border: "1px solid #bfdbfe",
+              }}
+            >
+              Demo Student
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => quickDemoLogin("admin@demo.com", "admin123")}
+              style={{
+                padding: "7px 10px",
+                fontSize: 12,
+                fontWeight: 700,
+                background: "#ecfdf5",
+                color: "#047857",
+                border: "1px solid #a7f3d0",
+              }}
+            >
+              Demo Admin
+            </button>
+          </div>
+        </div>
+
         {/* Mode Switcher */}
         <div
           style={{
@@ -84,7 +147,7 @@ export default function AuthPage({ onAuthSuccess }) {
             background: "#f1f5f9",
             padding: 4,
             borderRadius: 12,
-            marginBottom: 20,
+            marginBottom: 18,
           }}
         >
           <button
@@ -204,7 +267,7 @@ export default function AuthPage({ onAuthSuccess }) {
             style={{ width: "100%", marginTop: 4, padding: "12px 16px", fontSize: 15 }}
           >
             {loading
-              ? "Please wait..."
+              ? "Connecting to server..."
               : isRegister
               ? "Register & Enter Dashboard"
               : "Sign In to Dashboard"}
