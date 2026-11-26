@@ -25,7 +25,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url:http://localhost:*}")
     private String frontendUrl;
 
     public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
