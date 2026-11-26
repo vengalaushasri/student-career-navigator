@@ -2,6 +2,7 @@ package com.careernavigator.backend.controller;
 
 import com.careernavigator.backend.model.*;
 import com.careernavigator.backend.repository.*;
+import com.careernavigator.backend.security.OwnershipGuard;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -11,7 +12,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/navigator")
-@CrossOrigin(origins = "http://localhost:5173")
 public class NavigatorController {
 
     private final EducationPathwayRepository pathwayRepository;
@@ -21,6 +21,7 @@ public class NavigatorController {
     private final RoadmapStepRepository roadmapRepository;
     private final StudentRepository studentRepository;
     private final StudentProfileRepository profileRepository;
+    private final OwnershipGuard ownershipGuard;
 
     public NavigatorController(
             EducationPathwayRepository pathwayRepository,
@@ -29,7 +30,8 @@ public class NavigatorController {
             LearningResourceRepository resourceRepository,
             RoadmapStepRepository roadmapRepository,
             StudentRepository studentRepository,
-            StudentProfileRepository profileRepository) {
+            StudentProfileRepository profileRepository,
+            OwnershipGuard ownershipGuard) {
         this.pathwayRepository = pathwayRepository;
         this.schemeRepository = schemeRepository;
         this.collegeRepository = collegeRepository;
@@ -37,6 +39,7 @@ public class NavigatorController {
         this.roadmapRepository = roadmapRepository;
         this.studentRepository = studentRepository;
         this.profileRepository = profileRepository;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @GetMapping("/pathways")
@@ -88,6 +91,7 @@ public class NavigatorController {
     public ResponseEntity<Map<String, Object>> analyzeBudget(
             @PathVariable Long studentId,
             @RequestParam(defaultValue = "false") boolean includeHostel) {
+        ownershipGuard.verifyStudentAccess(studentId);
         StudentProfile profile = profileRepository.findByStudentId(studentId).orElse(new StudentProfile());
         int studentBudget = profile.getAnnualBudgetInr() != null ? profile.getAnnualBudgetInr() : 50000;
 
@@ -128,6 +132,7 @@ public class NavigatorController {
 
     @GetMapping("/roadmap/{studentId}")
     public List<RoadmapStep> getStudentRoadmap(@PathVariable Long studentId) {
+        ownershipGuard.verifyStudentAccess(studentId);
         return roadmapRepository.findByStudentIdOrderByStepOrderAsc(studentId);
     }
 
@@ -136,6 +141,7 @@ public class NavigatorController {
     public List<RoadmapStep> generateRoadmap(
             @PathVariable Long studentId,
             @RequestParam(defaultValue = "Full-Stack Software Developer") String career) {
+        ownershipGuard.verifyStudentAccess(studentId);
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Student not found"));
 
@@ -151,6 +157,7 @@ public class NavigatorController {
             @RequestParam String status) {
         RoadmapStep step = roadmapRepository.findById(stepId)
                 .orElseThrow(() -> new RuntimeException("Step not found"));
+        ownershipGuard.verifyStudentAccess(step.getStudent().getId());
         step.setStatus(status);
         return ResponseEntity.ok(roadmapRepository.save(step));
     }

@@ -15,7 +15,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
     private final AppUserRepository userRepository;
@@ -38,16 +37,14 @@ public class AuthController {
         String fullName = body.getOrDefault("fullName", "").trim();
         String email = body.getOrDefault("email", "").trim().toLowerCase();
         String password = body.getOrDefault("password", "");
-        String role = body.getOrDefault("role", "STUDENT").trim().toUpperCase();
+        // Enforce STUDENT role on public registration to prevent privilege escalation
+        String role = "STUDENT";
 
         if (fullName.isEmpty() || email.isEmpty() || password.length() < 4) {
             return ResponseEntity.badRequest().body(Map.of("message", "Name, email, and password (min 4 chars) are required"));
         }
         if (userRepository.existsByEmail(email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "Email is already registered"));
-        }
-        if (!role.equals("ADMIN")) {
-            role = "STUDENT";
         }
 
         // Link or auto-create a Student record so the student dashboard works seamlessly

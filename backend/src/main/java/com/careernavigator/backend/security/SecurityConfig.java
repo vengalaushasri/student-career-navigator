@@ -40,7 +40,10 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/actuator/health", "/").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/navigator/**", "/api/careers/**", "/api/skills/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/navigator/pathways", "/api/navigator/schemes",
+                        "/api/navigator/colleges", "/api/navigator/resources",
+                        "/api/careers/**", "/api/skills/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/students").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/careers/**", "/api/skills/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/careers/**", "/api/skills/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/careers/**", "/api/skills/**").hasRole("ADMIN")

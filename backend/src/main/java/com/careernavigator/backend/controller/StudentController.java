@@ -6,6 +6,7 @@ import com.careernavigator.backend.model.StudentProfile;
 import com.careernavigator.backend.repository.SkillRepository;
 import com.careernavigator.backend.repository.StudentProfileRepository;
 import com.careernavigator.backend.repository.StudentRepository;
+import com.careernavigator.backend.security.OwnershipGuard;
 import com.careernavigator.backend.service.GeminiCareerService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -16,23 +17,25 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/students")
-@CrossOrigin(origins = "http://localhost:5173")
 public class StudentController {
 
     private final StudentRepository studentRepository;
     private final SkillRepository skillRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final GeminiCareerService geminiCareerService;
+    private final OwnershipGuard ownershipGuard;
 
     public StudentController(
             StudentRepository studentRepository,
             SkillRepository skillRepository,
             StudentProfileRepository studentProfileRepository,
-            GeminiCareerService geminiCareerService) {
+            GeminiCareerService geminiCareerService,
+            OwnershipGuard ownershipGuard) {
         this.studentRepository = studentRepository;
         this.skillRepository = skillRepository;
         this.studentProfileRepository = studentProfileRepository;
         this.geminiCareerService = geminiCareerService;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @GetMapping
@@ -42,6 +45,7 @@ public class StudentController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Student> getStudentById(@PathVariable Long id) {
+        ownershipGuard.verifyStudentAccess(id);
         return studentRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -56,6 +60,7 @@ public class StudentController {
     public ResponseEntity<Student> addSkillToStudent(
             @PathVariable Long studentId,
             @PathVariable Long skillId) {
+        ownershipGuard.verifyStudentAccess(studentId);
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Student not found with id: " + studentId));
         Skill skill = skillRepository.findById(skillId)
@@ -69,6 +74,7 @@ public class StudentController {
     public ResponseEntity<Student> removeSkillFromStudent(
             @PathVariable Long studentId,
             @PathVariable Long skillId) {
+        ownershipGuard.verifyStudentAccess(studentId);
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Student not found with id: " + studentId));
         Skill skill = skillRepository.findById(skillId)
@@ -80,6 +86,7 @@ public class StudentController {
 
     @GetMapping("/{id}/profile")
     public ResponseEntity<StudentProfile> getStudentProfile(@PathVariable Long id) {
+        ownershipGuard.verifyStudentAccess(id);
         Student student = studentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Student not found with id: " + id));
         StudentProfile profile = studentProfileRepository.findByStudentId(id)
@@ -95,6 +102,7 @@ public class StudentController {
     public ResponseEntity<StudentProfile> updateStudentProfile(
             @PathVariable Long id,
             @Valid @RequestBody StudentProfile updated) {
+        ownershipGuard.verifyStudentAccess(id);
         Student student = studentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Student not found with id: " + id));
 
@@ -127,6 +135,7 @@ public class StudentController {
 
     @GetMapping("/{id}/ai-guidance")
     public ResponseEntity<Map<String, Object>> getAiCareerGuidance(@PathVariable Long id) {
+        ownershipGuard.verifyStudentAccess(id);
         return ResponseEntity.ok(geminiCareerService.generateCareerGuidance(id));
     }
 }

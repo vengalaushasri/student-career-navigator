@@ -1,19 +1,25 @@
 package com.careernavigator.backend.service;
 
 import com.careernavigator.backend.model.Career;
+import com.careernavigator.backend.model.College;
+import com.careernavigator.backend.model.GovernmentScheme;
 import com.careernavigator.backend.model.Skill;
 import com.careernavigator.backend.model.Student;
 import com.careernavigator.backend.model.StudentProfile;
 import com.careernavigator.backend.repository.CareerRepository;
+import com.careernavigator.backend.repository.CollegeRepository;
+import com.careernavigator.backend.repository.GovernmentSchemeRepository;
 import com.careernavigator.backend.repository.StudentProfileRepository;
 import com.careernavigator.backend.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,8 +29,10 @@ public class GeminiCareerService {
     private final StudentRepository studentRepository;
     private final StudentProfileRepository profileRepository;
     private final CareerRepository careerRepository;
+    private final GovernmentSchemeRepository schemeRepository;
+    private final CollegeRepository collegeRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
 
     @Value("${gemini.api.key:}")
     private String geminiApiKey;
@@ -35,10 +43,21 @@ public class GeminiCareerService {
     public GeminiCareerService(
             StudentRepository studentRepository,
             StudentProfileRepository profileRepository,
-            CareerRepository careerRepository) {
+            CareerRepository careerRepository,
+            GovernmentSchemeRepository schemeRepository,
+            CollegeRepository collegeRepository) {
         this.studentRepository = studentRepository;
         this.profileRepository = profileRepository;
         this.careerRepository = careerRepository;
+        this.schemeRepository = schemeRepository;
+        this.collegeRepository = collegeRepository;
+
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(25));
+        this.restClient = RestClient.builder()
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @SuppressWarnings("unchecked")
@@ -47,14 +66,16 @@ public class GeminiCareerService {
                 .orElseThrow(() -> new RuntimeException("Student not found with id: " + studentId));
         StudentProfile profile = profileRepository.findByStudentId(studentId).orElse(new StudentProfile());
         List<Career> availableCareers = careerRepository.findAll();
+        List<GovernmentScheme> relevantSchemes = filterRelevantSchemes(profile);
+        List<College> affordableColleges = filterAffordableColleges(profile);
 
         if (geminiApiKey == null || geminiApiKey.isBlank() || "your_gemini_api_key".equals(geminiApiKey)) {
-            return buildFallbackGuidance(student, profile, availableCareers,
+            return buildFallbackGuidance(student, profile, availableCareers, relevantSchemes,
                     "Deterministic Skill & Budget Engine (Set a real GEMINI_API_KEY for live Gemini AI reasoning)");
         }
 
         try {
-            String prompt = buildGroundedPrompt(student, profile, availableCareers);
+            String prompt = buildGroundedPrompt(student, profile, availableCareers, relevantSchemes, affordableColleges);
             String url = "https://generativelanguage.googleapis.com/v1beta/models/"
                     + geminiModel + ":generateContent";
 
@@ -74,19 +95,41 @@ public class GeminiCareerService {
             JsonNode root = objectMapper.readTree(responseBody);
             String jsonText = root.path("candidates").get(0)
                     .path("content").path("parts").get(0)
-                    .path("text").asText();
+                    .path("text").asString();
 
             Map<String, Object> parsed = objectMapper.readValue(jsonText, Map.class);
-            parsed.put("source", "Gemini AI (" + geminiModel + ")");
+            parsed.put("source", "Gemini AI (" + geminiModel + ") + Grounded DB Records");
             return parsed;
 
         } catch (Exception ex) {
-            return buildFallbackGuidance(student, profile, availableCareers,
+            return buildFallbackGuidance(student, profile, availableCareers, relevantSchemes,
                     "Fallback Engine (AI temporarily unavailable: " + ex.getMessage() + ")");
         }
     }
 
-    private String buildGroundedPrompt(Student student, StudentProfile p, List<Career> careers) {
+    private List<GovernmentScheme> filterRelevantSchemes(StudentProfile profile) {
+        String state = profile.getHomeState();
+        return schemeRepository.findAll().stream()
+                .filter(s -> state == null || state.isBlank()
+                        || "ALL".equalsIgnoreCase(s.getApplicableState())
+                        || s.getApplicableState().toLowerCase().contains(state.toLowerCase()))
+                .limit(8)
+                .collect(Collectors.toList());
+    }
+
+    private List<College> filterAffordableColleges(StudentProfile profile) {
+        Integer budget = profile.getAnnualBudgetInr();
+        return collegeRepository.findAll().stream()
+                .filter(c -> budget == null || budget <= 0
+                        || c.getAnnualTuitionFeeInr() == null
+                        || c.getAnnualTuitionFeeInr() <= budget * 1.5)
+                .limit(8)
+                .collect(Collectors.toList());
+    }
+
+    private String buildGroundedPrompt(
+            Student student, StudentProfile p, List<Career> careers,
+            List<GovernmentScheme> schemes, List<College> colleges) {
         String existingSkills = student.getSkills().stream()
                 .map(Skill::getName)
                 .collect(Collectors.joining(", "));
@@ -96,10 +139,20 @@ public class GeminiCareerService {
                         + " (Skills: " + c.getSkills().stream().map(Skill::getName).collect(Collectors.joining(", ")) + ")")
                 .collect(Collectors.joining("\n"));
 
+        String schemeCatalog = schemes.isEmpty() ? "None loaded" : schemes.stream()
+                .map(s -> "- " + s.getName() + " [" + s.getLevel() + " / " + s.getApplicableState()
+                        + "] | Benefit: " + s.getFinancialBenefit() + " | Portal: " + s.getOfficialWebsite())
+                .collect(Collectors.joining("\n"));
+
+        String collegeCatalog = colleges.isEmpty() ? "None loaded" : colleges.stream()
+                .map(c -> "- " + c.getName() + " (" + c.getCity() + ", " + c.getInstitutionType()
+                        + ") | Tuition: ₹" + c.getAnnualTuitionFeeInr() + "/yr | Exam: " + c.getEntranceExam())
+                .collect(Collectors.joining("\n"));
+
         return """
                 You are an expert Indian Student Career Counselor and Education Economist.
                 Analyze this student's profile and return ONLY valid JSON matching the schema below.
-                Do NOT invent fake government schemes or fake college fees. Keep salary figures realistic for India (INR LPA) with city/experience context.
+                CRITICAL GROUNDING RULE: Only cite government schemes and colleges listed in the VERIFIED DATABASE RECORDS below. Do NOT invent fake scheme names, fake fee numbers, or unverified portal links. Keep salary figures realistic for India (INR LPA) with city/experience context.
 
                 STUDENT PROFILE:
                 - Name: %s
@@ -113,11 +166,18 @@ public class GeminiCareerService {
                 - Primary Goal: %s
                 - Home State / Preferred City: %s / %s
                 - Annual Family Education Budget (INR): %s
+                - Social Category: %s
                 - Willing to Relocate: %s
                 - Learning Mode: %s
                 - Current Skills: %s
 
-                EXISTING VERIFIED CAREERS IN DATABASE:
+                VERIFIED CAREERS IN DATABASE:
+                %s
+
+                VERIFIED GOVERNMENT SCHEMES IN DATABASE:
+                %s
+
+                VERIFIED COLLEGES IN DATABASE:
                 %s
 
                 Return JSON with this exact structure:
@@ -134,7 +194,7 @@ public class GeminiCareerService {
                       "keySkillsNeeded": ["skill1", "skill2", "skill3"],
                       "advantages": ["pro 1", "pro 2"],
                       "disadvantages": ["con 1", "con 2"],
-                      "budgetFitNote": "how to pursue this within the student's ₹ annual budget"
+                      "budgetFitNote": "reference matching verified schemes or colleges from the database above to fit the student's ₹ annual budget"
                     }
                   ]
                 }
@@ -143,17 +203,23 @@ public class GeminiCareerService {
                 student.getName(), p.getAge(), p.getCurrentQualification(), p.getStream(),
                 p.getAcademicScore(), p.getPreferredSubjects(), p.getInterestsAndPassions(),
                 p.getPreferredDomains(), p.getCareerGoalType(), p.getHomeState(),
-                p.getPreferredCity(), p.getAnnualBudgetInr(), p.getWillingToRelocate(),
-                p.getLearningMode(), existingSkills.isEmpty() ? "None listed yet" : existingSkills,
-                catalog
+                p.getPreferredCity(), p.getAnnualBudgetInr(), p.getSocialCategory(),
+                p.getWillingToRelocate(), p.getLearningMode(),
+                existingSkills.isEmpty() ? "None listed yet" : existingSkills,
+                catalog, schemeCatalog, collegeCatalog
         );
     }
 
     private Map<String, Object> buildFallbackGuidance(
-            Student student, StudentProfile profile, List<Career> careers, String note) {
+            Student student, StudentProfile profile, List<Career> careers,
+            List<GovernmentScheme> schemes, String note) {
         Set<String> studentSkillNames = student.getSkills().stream()
                 .map(s -> s.getName().toLowerCase())
                 .collect(Collectors.toSet());
+
+        String topSchemeHint = schemes.isEmpty()
+                ? "NSP / State Fee Reimbursement portals"
+                : schemes.stream().limit(2).map(GovernmentScheme::getName).collect(Collectors.joining(", "));
 
         List<Map<String, Object>> recs = new ArrayList<>();
         for (Career c : careers) {
@@ -173,8 +239,8 @@ public class GeminiCareerService {
             item.put("advantages", List.of("Strong remote & hybrid opportunities", "Free official courses available on NPTEL & SWAYAM"));
             item.put("disadvantages", List.of("Requires continuous upskilling and hands-on portfolio projects"));
             item.put("budgetFitNote", profile.getAnnualBudgetInr() != null
-                    ? "Fits within ₹" + profile.getAnnualBudgetInr() + "/yr via Government/State colleges or NPTEL + Degree route."
-                    : "Enter your annual family budget in the Profile tab to see personalized affordability guidance.");
+                    ? "Fits within ₹" + profile.getAnnualBudgetInr() + "/yr via Government/State colleges or schemes like " + topSchemeHint + "."
+                    : "Enter your annual family budget in the Profile tab to match schemes such as " + topSchemeHint + ".");
             recs.add(item);
         }
 
