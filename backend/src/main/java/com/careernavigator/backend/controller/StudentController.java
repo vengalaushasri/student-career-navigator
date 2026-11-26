@@ -1,16 +1,21 @@
 package com.careernavigator.backend.controller;
 
+import com.careernavigator.backend.model.AppUser;
 import com.careernavigator.backend.model.Skill;
 import com.careernavigator.backend.model.Student;
 import com.careernavigator.backend.model.StudentProfile;
+import com.careernavigator.backend.repository.AppUserRepository;
 import com.careernavigator.backend.repository.SkillRepository;
 import com.careernavigator.backend.repository.StudentProfileRepository;
 import com.careernavigator.backend.repository.StudentRepository;
 import com.careernavigator.backend.security.OwnershipGuard;
 import com.careernavigator.backend.service.GeminiCareerService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +27,7 @@ public class StudentController {
     private final StudentRepository studentRepository;
     private final SkillRepository skillRepository;
     private final StudentProfileRepository studentProfileRepository;
+    private final AppUserRepository appUserRepository;
     private final GeminiCareerService geminiCareerService;
     private final OwnershipGuard ownershipGuard;
 
@@ -29,18 +35,44 @@ public class StudentController {
             StudentRepository studentRepository,
             SkillRepository skillRepository,
             StudentProfileRepository studentProfileRepository,
+            AppUserRepository appUserRepository,
             GeminiCareerService geminiCareerService,
             OwnershipGuard ownershipGuard) {
         this.studentRepository = studentRepository;
         this.skillRepository = skillRepository;
         this.studentProfileRepository = studentProfileRepository;
+        this.appUserRepository = appUserRepository;
         this.geminiCareerService = geminiCareerService;
         this.ownershipGuard = ownershipGuard;
     }
 
     @GetMapping
-    public List<Student> getAllStudents() {
-        return studentRepository.findAll();
+    public List<Student> getAllStudents(Authentication auth) {
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (isAdmin) {
+            return studentRepository.findAll();
+        }
+        AppUser user = appUserRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        if (user.getStudentId() == null) {
+            return List.of();
+        }
+        return studentRepository.findById(user.getStudentId())
+                .map(List::of)
+                .orElse(List.of());
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Student> getCurrentStudent(Authentication auth) {
+        AppUser user = appUserRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        if (user.getStudentId() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return studentRepository.findById(user.getStudentId())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}")

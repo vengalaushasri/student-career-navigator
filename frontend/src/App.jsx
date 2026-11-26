@@ -53,6 +53,7 @@ export default function App() {
   const handleAuthSuccess = (data) => {
     localStorage.setItem("cn_token", data.token);
     localStorage.setItem("cn_user", JSON.stringify(data));
+    setError("");
     setAuthUser(data);
     if (data.studentId) {
       setSelectedStudentId(Number(data.studentId));
@@ -65,11 +66,13 @@ export default function App() {
     setAuthUser(null);
     setSelectedStudentId(null);
     setProfile(null);
+    setError("");
     setActiveTab("dashboard");
   };
 
   const refreshAllData = async () => {
     try {
+      setError("");
       const [studentList, careerList, skillList, schemeList] = await Promise.all([
         fetchStudents(),
         fetchCareers(),
@@ -200,37 +203,55 @@ export default function App() {
 
           {/* Active Student Pill Switcher + Logout */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "#f8fafc",
-                padding: "6px 12px",
-                borderRadius: 12,
-                border: "1px solid #e2e8f0",
-              }}
-            >
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Student:</span>
-              <select
-                value={selectedStudentId || ""}
-                onChange={(e) => setSelectedStudentId(Number(e.target.value))}
+            {authUser.role === "ADMIN" ? (
+              <div
                 style={{
-                  padding: "4px 10px",
-                  borderRadius: 8,
-                  border: "1px solid #cbd5e1",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  background: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "#f8fafc",
+                  padding: "6px 12px",
+                  borderRadius: 12,
+                  border: "1px solid #e2e8f0",
                 }}
               >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Student:</span>
+                <select
+                  value={selectedStudentId || ""}
+                  onChange={(e) => setSelectedStudentId(Number(e.target.value))}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #cbd5e1",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    background: "#fff",
+                  }}
+                >
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              selectedStudent && (
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    padding: "6px 12px",
+                    borderRadius: 12,
+                    border: "1px solid #e2e8f0",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#0f172a",
+                  }}
+                >
+                  Profile: {selectedStudent.name}
+                </div>
+              )
+            )}
 
             <button
               onClick={handleLogout}
